@@ -67,7 +67,16 @@ window.WEDDING = {
 
   /* ---------- HOW TO REACH YOU ---------- */
   contact: {
-    email: "akankshasingh25march@gmail.com",
+    /* Scrambled on purpose. Harvesters work by running a regular expression
+       over the page source looking for an @ or a run of digits — neither is
+       here, in the HTML or in this file, and this file is public. site.js
+       unscrambles them only when a visitor actually clicks.
+
+       To change one, open the site, press F12 for the console, and run:
+           BB.mask("new@address.com")
+       then paste what it gives you below. BB.unmask() goes the other way.  */
+    email:    "4b414b444159424b5943444d42181f474b5849426a4d474b434604494547",
+    whatsapp: "01131b0a1d191f181d181f1b1a1a",
     helpText:
       "Stuck on anything — what to pack, sweaters or beach clothes? how long can you perform? a dietary thing, a train that only runs on Tuesdays? Ask us. We genuinely do not mind.",
   },

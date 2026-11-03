@@ -699,3 +699,8 @@ mark.todo{
 /* With submitTo: "google" the ten are still listed, just without the
    attach buttons, so there is nothing below the prompt to make room for. */
 .shot--plain{ padding-block:.85rem; }
+
+/* Contact links carry no address until someone reaches for one, so they
+   still have to look and behave like links before that happens. */
+[data-contact]{ cursor:pointer; overflow-wrap:anywhere; }
+.site-foot [data-contact]{ font-weight:600; }

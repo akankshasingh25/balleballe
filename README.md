@@ -25,8 +25,8 @@ Anything still wrapped in `«...»` is a placeholder. On the live site it shows 
 highlight disappears.
 
 What's already real: both your names, all four events (dates, times, venues,
-optional dress codes), your email and WhatsApp number, both hotels, the airport
-and the station.
+optional dress codes), your email and WhatsApp number (see below — both are
+scrambled), both hotels, the airport and the station.
 
 What's still marked unfinished — every one shows up highlighted in gold on the
 live site. All of them are in `data/config.js`:
@@ -70,6 +70,45 @@ The page works out which of those you've filled in:
 | `sheetUrl` only | A gold **Open the full sheet** button |
 | `items` only | The rows |
 | Both | The rows, with the sheet as a second button under them |
+
+## The email address and the phone number
+
+Both are shown on the site, and neither is harvestable by the usual means.
+
+They are stored **scrambled** in `data/config.js`:
+
+```js
+email:    "4b414b444159424b5943444d42181f474b5849426a4d474b434604494547",
+whatsapp: "01131b0a1d191f181d181f1b1a1a",
+```
+
+and — this is the part that matters — they are **not written into the page
+when it loads**. A contact link shows a label ("Email us", "WhatsApp") with no
+`href` at all. Only when somebody reaches for it — pointer down, a tap, or
+keyboard focus — does `site.js` unscramble the value, put it in the `href` and
+show it as text.
+
+Addresses get harvested by running a regular expression over page source,
+looking for an `@` or a long run of digits. Neither exists here: not in the
+HTML, not in `config.js`, not in this public repo. A person gets the address on
+the first click, as normal; a scraper gets the word "email".
+
+It is a speed bump, not a lock. Anyone who opens the console and types
+`BB.unmask(WEDDING.contact.email)` has it. That's fine — the point is to not be
+the easy one.
+
+**To change either**, open the site, press F12 for the console, and run:
+
+```js
+BB.mask("new@address.com")
+```
+
+Paste what it prints into `config.js`. `BB.unmask("...")` goes the other way, so
+you can always check what's in there.
+
+Marked up as `<a data-contact="email">` or `<a data-contact="whatsapp">`. Add
+`data-contact-label` to keep your own wording on the link (the home page's
+buttons do this) instead of swapping it for the address.
 
 ## The missions
 

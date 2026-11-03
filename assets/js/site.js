@@ -67,7 +67,6 @@
       var clean = String(v).replace(/[«»]/g, "");
       if (attr) { n.setAttribute(attr, clean); return; }
       n.innerHTML = todo(v);
-      if (n.hasAttribute("data-cfg-mailto")) n.setAttribute("href", "mailto:" + clean);
     });
 
     /* A box whose every row has gone is just an empty border. */
@@ -88,6 +87,66 @@
     qsa("[data-art]:not([data-painted])", root || document).forEach(function (n) {
       n.insertAdjacentHTML("afterbegin", backdrop(n.getAttribute("data-art")));
       n.setAttribute("data-painted", "1");
+    });
+  }
+
+  /* ---------- 1b. contact details ----------
+     The email address and the phone number are kept scrambled in config.js,
+     and they are NOT written into the page when it loads. A link shows a
+     label ("Email us"); only when somebody reaches for it — pointer down,
+     or keyboard focus — does the real value go into the href and the text.
+
+     That is enough to beat the way addresses are actually harvested: a
+     regular expression run over the page source, looking for an @ or a run
+     of digits. Neither exists until a human acts. It will not stop someone
+     determined, and it is not meant to.                                   */
+  var MASK_KEY = 0x2a;
+
+  function unmask(hex) {
+    var out = "";
+    for (var i = 0; i < String(hex).length; i += 2) {
+      out += String.fromCharCode(parseInt(String(hex).substr(i, 2), 16) ^ MASK_KEY);
+    }
+    return out;
+  }
+  function mask(text) {
+    var out = "";
+    for (var i = 0; i < String(text).length; i++) {
+      var h = (String(text).charCodeAt(i) ^ MASK_KEY).toString(16);
+      out += h.length < 2 ? "0" + h : h;
+    }
+    return out;
+  }
+  /* So you can generate a new one from the browser console. */
+  window.BB = { mask: mask, unmask: unmask };
+
+  function contacts() {
+    var K = C.contact || {};
+    qsa("[data-contact]").forEach(function (a) {
+      var which = a.getAttribute("data-contact");
+      var raw = unmask(K[which] || "");
+      if (!raw) { a.hidden = true; return; }
+
+      var href = which === "whatsapp"
+        ? "https://wa.me/" + raw.replace(/[^0-9]/g, "")
+        : "mailto:" + raw;
+
+      var shown = false;
+      var reveal = function () {
+        if (shown) return;
+        shown = true;
+        a.setAttribute("href", href);
+        /* Show the real thing too, so it can be read and copied. */
+        if (a.hasAttribute("data-contact-label")) return;
+        a.textContent = raw;
+      };
+      /* pointerdown fires before click, so one tap still follows the link. */
+      ["pointerdown", "touchstart", "focus", "mouseenter"].forEach(function (ev) {
+        a.addEventListener(ev, reveal, { once: true, passive: true });
+      });
+      a.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") reveal();
+      });
     });
   }
 
@@ -809,9 +868,9 @@
           done();
           status(form, "bad",
             "<p><strong>That didn't send.</strong> " + esc(msg) + "</p>" +
-            "<p>Please email us instead: <a href='mailto:" +
-            esc(String((C.contact || {}).email || "").replace(/[«»]/g, "")) + "'>" +
-            todo((C.contact || {}).email || "") + "</a></p>");
+            "<p>Please email us instead: " +
+            '<a data-contact="email" data-contact-label>email us</a></p>');
+          contacts();
         };
 
         if (files) {
@@ -885,6 +944,7 @@
     document.title = (document.title ? document.title + " · " : "") +
       String((C.couple || {}).siteTitle || "").replace(/[«»]/g, "");
     bindConfig(document);
+    contacts();
     gamesNav();
     markNav();
     countdown();
