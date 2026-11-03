@@ -1,0 +1,2 @@
+# Tells GitHub Pages to serve these files as-is instead of running them
+# through Jekyll. Harmless on every other host.

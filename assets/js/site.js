@@ -1,0 +1,906 @@
+/* =============================================================
+   site.js — wiring. Reads data/config.js and data/posts.js and
+   fills the pages in. You should rarely need to open this file.
+   ============================================================= */
+(function () {
+  "use strict";
+
+  var C = window.WEDDING || {};
+
+  function qs(s, r) { return (r || document).querySelector(s); }
+  function qsa(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
+  /* "travel.air.name" walks objects. A "#id" segment finds an entry in an
+     array by its id instead of its position, so commenting out one bullet
+     doesn't silently point a page at the bullet below it. */
+  function dig(path) {
+    return path.split(".").reduce(function (o, k) {
+      if (o == null) return o;
+      if (k.charAt(0) === "#") {
+        return Array.isArray(o)
+          ? o.filter(function (x) { return x && x.id === k.slice(1); })[0]
+          : null;
+      }
+      return o[k];
+    }, C);
+  }
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+  /* Anything still wrapped in «guillemets» is unfinished — make it
+     impossible to miss. Delete the guillemets and the mark goes away. */
+  function todo(s) {
+    return esc(s).replace(/«([^»]*)»/g, '<mark class="todo">$1</mark>');
+  }
+  function el(tag, cls, html) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (html != null) n.innerHTML = html;
+    return n;
+  }
+
+  /* A link out of config, or "" while it is still in «guillemets». Every
+     hand-off to Google goes through here, so a form you haven't made yet
+     never turns into a dead button. */
+  function cfgLink(path) {
+    var v = String(dig(path) || "");
+    return v && v.indexOf("«") < 0 ? v : "";
+  }
+
+  /* ---------- 1. config binding ----------
+     <span data-cfg="couple.one"></span>  → Akanksha
+     Add data-cfg-attr="href" to write an attribute instead.        */
+  function bindConfig(root) {
+    qsa("[data-cfg]", root).forEach(function (n) {
+      var v = dig(n.getAttribute("data-cfg"));
+      /* Commenting a key out of config.js should make its line disappear,
+         not leave an empty element or the word "undefined" on the page. */
+      if (v == null || v === "") {
+        n.hidden = true;
+        var row = n.closest && n.closest("[data-cfg-row]");
+        if (row) row.hidden = true;
+        return;
+      }
+      n.hidden = false;
+      var attr = n.getAttribute("data-cfg-attr");
+      var clean = String(v).replace(/[«»]/g, "");
+      if (attr) { n.setAttribute(attr, clean); return; }
+      n.innerHTML = todo(v);
+      if (n.hasAttribute("data-cfg-mailto")) n.setAttribute("href", "mailto:" + clean);
+    });
+
+    /* A box whose every row has gone is just an empty border. */
+    qsa("[data-cfg-box]", root).forEach(function (box) {
+      var rows = qsa("[data-cfg-row]", box);
+      if (rows.length && rows.every(function (r) { return r.hidden; })) box.hidden = true;
+    });
+  }
+
+  /* The artwork does the job the generated skies used to do: a soft,
+     scaled-up copy sits behind the words for colour, and a crisp copy
+     of the same file is shown whole as a postcard. One download, twice. */
+  function backdrop(src, alt) {
+    return '<img class="sky__art" src="' + esc(src) + '" alt="' + (alt || "") +
+           '" aria-hidden="true" loading="lazy" decoding="async">';
+  }
+  function paintAll(root) {
+    qsa("[data-art]:not([data-painted])", root || document).forEach(function (n) {
+      n.insertAdjacentHTML("afterbegin", backdrop(n.getAttribute("data-art")));
+      n.setAttribute("data-painted", "1");
+    });
+  }
+
+  /* ---------- 2. nav ---------- */
+  function markNav() {
+    /* Cloudflare Pages serves /events for events.html, and some hosts add a
+       trailing slash. Compare both sides stripped down to a bare name, or
+       the "you are here" marker never fires once it's deployed. */
+    function bare(u) {
+      return String(u || "").split(/[?#]/)[0].replace(/\/$/, "")
+        .split("/").pop().replace(/\.html$/, "") || "index";
+    }
+    var here = bare(location.pathname);
+    qsa(".nav a").forEach(function (a) {
+      if (bare(a.getAttribute("href")) === here) {
+        a.setAttribute("aria-current", "page");
+      }
+    });
+  }
+
+  /* ---------- 3. countdown ---------- */
+  function countdown() {
+    var box = qs("#countdown");
+    if (!box || !C.mainDate) return;
+    var target = new Date(C.mainDate).getTime();
+    if (isNaN(target)) return;
+
+    var units = [["days", 864e5], ["hours", 36e5], ["minutes", 6e4], ["seconds", 1e3]];
+    box.innerHTML = units.map(function (u) {
+      return '<div><b data-u="' + u[0] + '">–</b><span>' + u[0] + "</span></div>";
+    }).join("");
+
+    function tick() {
+      var left = target - Date.now();
+      if (left <= 0) {
+        box.innerHTML = '<div style="min-width:auto;padding:.8rem 1.4rem">' +
+          "<b>It's happening</b><span>see you in Puri</span></div>";
+        clearInterval(timer);
+        return;
+      }
+      units.forEach(function (u) {
+        var v = Math.floor(left / u[1]); left -= v * u[1];
+        qs('[data-u="' + u[0] + '"]', box).textContent = v;
+      });
+    }
+    tick();
+    var timer = setInterval(tick, 1000);
+  }
+
+  /* ---------- 4. events ---------- */
+  /* The anchor in the URL. It used to be called rsvpSlug, back when there
+     was an RSVP page for it to point at. Old configs still work. */
+  function slugOf(e) { return e.slug || e.rsvpSlug || ""; }
+
+  function dressLabel() {
+    return C.dressCodeIsOptional ? "Optional dress code" : "Dress code";
+  }
+
+  function eventPanels() {
+    var box = qs("#event-panels");
+    if (!box) return;
+
+    /* A jump bar, so four full-height panels don't mean four screens of scrolling
+       to reach the one you actually came for. */
+    var jump = qs("#event-jump");
+    if (jump) {
+      jump.innerHTML = (C.events || []).map(function (e) {
+        return '<a href="#' + esc(slugOf(e)) + '">' + esc(e.name) + "</a>";
+      }).join("");
+    }
+
+    (C.events || []).forEach(function (e, i) {
+      var s2 = el("section", "sky sky--scrim ev-panel");
+      s2.id = slugOf(e);
+      s2.setAttribute("data-sky", e.sky);
+      s2.setAttribute("data-painted", "1");
+      /* Alternate which side the painting sits on, so four in a row has a rhythm. */
+      if (i % 2) s2.classList.add("ev-panel--flip");
+
+      s2.innerHTML =
+        backdrop(e.art) +
+        '<div class="sky__in">' +
+          '<figure class="postcard">' +
+            '<img src="' + esc(e.art) + '" alt="The ' + esc(e.name) +
+            '" width="681" height="1150" loading="lazy" decoding="async">' +
+          "</figure>" +
+          '<div class="ev-panel__body">' +
+            '<p class="ev-panel__no">' + (i + 1) + " of " + (C.events || []).length +
+              (e.isMain ? ' &middot; <b>the main event</b>' : "") + "</p>" +
+            (e.logo ? '<img class="ev-panel__logo" src="' + esc(e.logo) + '" alt="' + esc(e.name) +
+                      '" loading="lazy" decoding="async"><h2 class="vh">' + esc(e.name) + "</h2>"
+                    : "<h2>" + esc(e.name) + "</h2>") +
+            '<p class="ev-panel__note">' + todo(e.note || "") + "</p>" +
+            '<dl class="ev-facts">' +
+              "<div><dt>When</dt><dd>" + esc(e.day) + ", " + esc(e.date) +
+                "<br>" + esc(e.time) + "</dd></div>" +
+              "<div><dt>Where</dt><dd>" + esc(e.venue) +
+                (e.city ? "<br>" + esc(e.city) : "") +
+                (e.mapUrl && e.mapUrl.indexOf("\u00ab") < 0
+                  ? '<br><a href="' + esc(e.mapUrl) + '" rel="noopener">Open in Maps</a>' : "") +
+              "</dd></div>" +
+              "<div><dt>" + dressLabel() + "</dt><dd>" + esc(e.dress) + "</dd></div>" +
+            "</dl>" +
+            (e.photo
+              ? '<figure class="painted-from">' +
+                  '<img src="' + esc(e.photo) + '" alt="' + esc(e.photoPlace || "") +
+                  '" loading="lazy" decoding="async">' +
+                  "<figcaption><b>Painted from</b> " + todo(e.photoPlace || "") +
+                  (e.photoNote ? "<span>" + todo(e.photoNote) + "</span>" : "") +
+                  "</figcaption></figure>"
+              : "") +
+          "</div>" +
+        "</div>";
+      box.appendChild(s2);
+    });
+
+    /* The panels didn't exist when the browser handled the URL, so a link
+       like events.html#sangeet landed at the top of the page. Do it now. */
+    if (location.hash) {
+      var t = document.getElementById(location.hash.slice(1));
+      if (t) requestAnimationFrame(function () { t.scrollIntoView(); });
+    }
+  }
+
+  /* Day-grouped summary. Nothing renders it at the moment — the "Here is the
+     whole thing" section was taken off the home page — but it is left wired so
+     dropping <div id="day-list" class="days"></div> back in brings it back. */
+  function dayList() {
+    var box = qs("#day-list");
+    if (!box) return;
+    var days = [];
+    (C.events || []).forEach(function (e) {
+      var d = days.filter(function (x) { return x.date === e.date; })[0];
+      if (!d) { d = { date: e.date, day: e.day, events: [] }; days.push(d); }
+      d.events.push(e);
+    });
+    box.innerHTML = days.map(function (d) {
+      return '<div class="day">' +
+        '<p class="day__label">' + esc(d.day) + "<span>" + esc(d.date) + "</span></p>" +
+        "<ul>" + d.events.map(function (e) {
+          return "<li><a href='events.html#" + esc(slugOf(e)) + "'>" +
+            "<b>" + esc(e.name) + "</b>" +
+            "<span>" + esc(e.time) + " &middot; " + esc(e.venue) + "</span></a></li>";
+        }).join("") + "</ul></div>";
+    }).join("");
+  }
+
+  /* ---------- 5. gift registry ---------- */
+  function gifts() {
+    var G = C.gifts || {};
+
+    var ways = qs("#gift-ways");
+    if (ways) {
+      ways.innerHTML = (G.ways || []).map(function (w) {
+        return "<li><h3>" + todo(w.title) + "</h3><p>" + todo(w.body) + "</p></li>";
+      }).join("");
+    }
+
+    var sheetUrl = String(G.sheetUrl || "");
+    var haveSheet = !!sheetUrl && sheetUrl.indexOf("\u00ab") < 0;
+
+    var list = qs("#gift-list");
+    if (list) {
+      var items = G.items || [];
+      list.innerHTML = items.length
+        ? items.map(function (it) {
+            var link = it.url && it.url.indexOf("\u00ab") < 0
+              ? ' <a href="' + esc(it.url) + '" rel="noopener">see it</a>' : "";
+            return '<li class="gift">' +
+              '<span class="gift__name">' + todo(it.name) + link + "</span>" +
+              (it.price ? '<span class="gift__price">' + todo(it.price) + "</span>" : "") +
+              (it.note && it.note.replace(/[\u00ab\u00bb]/g, "").trim()
+                ? '<span class="gift__note">' + todo(it.note) + "</span>" : "") +
+              "</li>";
+          }).join("")
+        : "";
+
+      /* Nothing to show and no sheet to point at yet — say that plainly
+         rather than leaving a heading above an empty space. */
+      var pending = qs("#gift-pending");
+      if (pending) pending.hidden = !!(items.length || haveSheet);
+      var blurb = qs("#gift-list-blurb");
+      if (blurb) blurb.hidden = !items.length;
+    }
+
+    var brands = qs("#gift-brands");
+    if (brands) {
+      var b = (G.brands || []).filter(function (x) { return x; });
+      if (!b.length) { var sec = brands.closest("[data-cfg-row]"); if (sec) sec.hidden = true; }
+      else brands.innerHTML = b.map(function (x) {
+        return '<li class="brand-chip">' + todo(x) + "</li>";
+      }).join("");
+    }
+
+    var sheet = qs("#gift-sheet");
+    if (sheet) {
+      sheet.hidden = !haveSheet;
+      if (haveSheet) {
+        sheet.href = sheetUrl;
+        /* With rows on the page the sheet is the long version; without them
+           it is the only version, so it stops being the quiet second button. */
+        sheet.className = (G.items || []).length ? "btn btn--ghost" : "btn btn--gold";
+      }
+    }
+  }
+
+  /* ---------- 6. travel ---------- */
+  function travel() {
+    var t = C.travel || {};
+
+    /* The itinerary goes to a Google Form once there is one. Until then the
+       page keeps its own form, so this is never a dead end. */
+    var url = cfgLink("collect.itinerary");
+    var own = qs("#plans-form");
+    var away = qs("#plans-elsewhere");
+    if (own) own.hidden = !!url;
+    if (away) {
+      away.hidden = !url;
+      var a = qs("#plans-link", away);
+      if (a && url) a.href = url;
+    }
+
+    var hotels = qs("#hotel-grid");
+    if (hotels && t.hotels) {
+      hotels.innerHTML = t.hotels.map(function (h) {
+        var isMap = /maps\.google|google\.[a-z.]+\/maps|maps\.app\.goo\.gl/.test(h.url || "");
+        var link = h.url && h.url.indexOf("«") < 0
+          ? '<p><a href="' + esc(h.url) + '" rel="noopener">' +
+            (isMap ? "Open in Maps" : "Book direct") + "</a></p>" : "";
+        return '<div class="card"><h3>' + todo(h.name) + "</h3>" +
+          (h.price ? '<p class="card__meta">' + todo(h.price) + "</p>" : "") +
+          "<p>" + todo(h.note) + "</p>" + link + "</div>";
+      }).join("");
+    }
+  }
+
+  /* ---------- 7. sustainability ---------- */
+  function sustain() {
+    var box = qs("#sustain-list");
+    if (!box) return;
+    var points = (C.sustainable || {}).points || [];
+    /* Comment the block out of config.js and the section goes with it,
+       rather than leaving a heading over an empty list. */
+    if (!points.length) {
+      var sec = box.closest("section");
+      if (sec) sec.hidden = true;
+      return;
+    }
+    box.innerHTML = points.map(function (p) {
+      return "<li><h3>" + todo(p.title) + "</h3><p>" + todo(p.body) + "</p></li>";
+    }).join("");
+  }
+
+  function story() {
+    var box = qs("#story-body");
+    if (!box || !C.story) return;
+    box.innerHTML = (C.story.paragraphs || []).map(function (p) {
+      return "<p>" + todo(p) + "</p>";
+    }).join("");
+  }
+
+  /* ---------- 7b. logo + save the date ---------- */
+  function media() {
+    var M = C.media || {};
+
+    var logo = qs("#logo-block");
+    if (logo && M.logo) {
+      logo.innerHTML =
+        '<div class="logo-pair">' +
+          '<img class="logo-mark" src="' + esc(M.logo) + '" alt="The Akanksha and Prateek logo: ' +
+            'two figures holding hands, one with a dragon head, one with a whale head" ' +
+            'width="720" height="676" loading="lazy" decoding="async">' +
+          '<img class="logo-src" src="' + esc(M.logoInspiration) + '" alt="Two crocheted toys, ' +
+            'a green dragon and a blue whale, sitting on a sofa" loading="lazy" decoding="async">' +
+        "</div>" +
+        "<div><h2>" + todo(M.logoHeading || "") + "</h2><p>" + todo(M.logoBody || "") + "</p></div>";
+    }
+
+    /* index.html carries the hero image statically so it loads first and
+       still shows without JavaScript. That used to mean editing media.cover
+       did nothing at all, so: if the config disagrees with the markup, the
+       config wins. */
+    /* #hero-cover, not .hero — 404.html is a hero too, and it has its own
+       painting. This used to overwrite it with the home page's cover. */
+    if (M.cover) {
+      var heroCard = qs("#hero-cover .postcard img");
+      if (heroCard && heroCard.getAttribute("src") !== M.cover) heroCard.src = M.cover;
+      var heroSky = qs("#hero-cover[data-art]");
+      if (heroSky && heroSky.getAttribute("data-art") !== M.cover) {
+        heroSky.setAttribute("data-art", M.cover);
+        var back = qs("#hero-cover .sky__art");
+        if (back) back.src = M.cover;
+      }
+    }
+
+    var vid = qs("#video-block");
+    if (vid && M.video) {
+      /* preload="none" — 19 MB should cost nothing until somebody presses play. */
+      vid.innerHTML =
+        "<div><h2>" + todo(M.videoHeading || "") + "</h2><p>" + todo(M.videoBody || "") + "</p></div>" +
+        '<video class="std" controls playsinline preload="none" width="1080" height="1920"' +
+          (M.videoPoster ? ' poster="' + esc(M.videoPoster) + '"' : "") + ">" +
+          '<source src="' + esc(M.video) + '" type="video/mp4">' +
+          "<p>Your browser can't play this. " +
+          '<a href="' + esc(M.video) + '">Download the video instead.</a></p>' +
+        "</video>";
+    }
+  }
+
+  /* The feed is switched off for now — feed.html is gone and nothing loads
+     data/posts.js. Put the page and the <script> back and this returns. */
+
+  /* ---------- 8. the missions ----------
+     missions.html: a photo hunt and a quiz, both of them forms. Hidden
+     behind the same date gate unless `live` says otherwise.
+
+     This is a static site. "Off" means hidden, not locked — the prompts and
+     the quiz answers sit in data/config.js, which anyone can open. For a
+     wedding game that is the right trade; it is not an exam. */
+  function previewing() {
+    return /(^|[?&])preview(=|&|$)/.test(location.search);
+  }
+
+  function gamesLive() {
+    if (previewing()) return true;
+    var G = C.games || {};
+    if (G.live === true) return true;
+    if (G.live === false) return false;
+    var from = G.liveFrom ? Date.parse(G.liveFrom) : NaN;
+    var till = G.liveUntil ? Date.parse(G.liveUntil) : NaN;
+    var now = Date.now();
+    if (!isNaN(from) && now < from) return false;
+    if (!isNaN(till) && now > till) return false;
+    return !isNaN(from) || !isNaN(till);
+  }
+
+  /* The nav is plain HTML on every page, so the link is put in here — which
+     means it genuinely isn't in the page until the missions are on. */
+  function gamesNav() {
+    if (!gamesLive()) return;
+    var nav = qs(".nav");
+    if (!nav || qs('.nav a[href^="missions.html"]')) return;
+    var a = el("a", null, esc((C.games || {}).navLabel || "Missions"));
+    a.href = "missions.html" + (previewing() ? "?preview" : "");
+    nav.appendChild(a);
+  }
+
+  /* #game is the real page, #game-gate the holding note. One survives. */
+  function gameGate() {
+    var game = qs("#game");
+    if (!game) return false;
+    var gate = qs("#game-gate");
+    var on = gamesLive();
+    game.hidden = !on;
+    if (gate) {
+      gate.hidden = on;
+      var when = qs("#game-open-label", gate);
+      if (when) when.innerHTML = todo((C.games || {}).openLabel || "");
+    }
+    if (on && previewing() && !qs(".preview-flag", game)) {
+      game.insertBefore(
+        el("p", "preview-flag shell",
+           "Preview — the missions are switched off for guests. Drop " +
+           "<code>?preview</code> off the URL to see what they get."),
+        game.firstChild);
+    }
+    return on;
+  }
+
+  function setText(sel, value) {
+    var n = qs(sel);
+    if (n && value) n.innerHTML = todo(value);
+  }
+
+  function missions() {
+    var G = C.games || {};
+    if (!qs("#game")) return;
+
+    setText("#missions-heading", G.heading);
+    setText("#missions-intro", G.intro);
+
+    var jump = qs("#mission-jump");
+    if (jump) {
+      jump.innerHTML =
+        '<a href="#mission-photos">' + esc((G.photos || {}).heading || "Photographs") + "</a>" +
+        '<a href="#mission-quiz">' + esc((G.quiz || {}).heading || "Quiz") + "</a>";
+    }
+
+    missionPhotos();
+    missionQuiz();
+  }
+
+  /* --- mission one: ten photographs, one file field each --- */
+  function missionPhotos() {
+    var P = (C.games || {}).photos || {};
+    var prompts = P.prompts || [];
+
+    setText("#photos-eyebrow", P.eyebrow);
+    setText("#photos-heading", P.heading);
+    setText("#photos-intro", P.intro);
+
+    /* The photographs go to a Google Form: it is the only option that files
+       each answer in its own Drive folder, and the only one that doesn't fall
+       over at 8 MB. Until that link exists the built-in form stands in. */
+    var url = cfgLink("collect.photos");
+    var useGoogle = !!url;
+    var here = qs("#photos-here");
+    var away = qs("#photos-elsewhere");
+    if (here) here.hidden = useGoogle;
+    if (away) {
+      away.hidden = !useGoogle;
+      var link = qs("#photos-elsewhere-link", away);
+      if (link && useGoogle) link.href = url;
+    }
+
+    /* The ten are rendered either way. Sending people to a Google Form is
+       no reason to stop telling them what they are looking for; it just
+       means the list loses its attach buttons. */
+    var list = useGoogle ? qs("#shot-list-readonly") : qs("#shot-list");
+    if (list) {
+      list.innerHTML = prompts.map(function (t, i) {
+        var n = i + 1;
+        var no = n < 10 ? "0" + n : n;
+        var id = "shot" + n;
+        return '<li class="shot' + (useGoogle ? " shot--plain" : "") + '">' +
+          '<div class="shot__head">' +
+            '<span class="shot__no">' + no + "</span>" +
+            '<span class="shot__text">' + todo(t) + "</span>" +
+          "</div>" +
+          (useGoogle ? "" :
+            '<div class="shot__drop">' +
+              '<input class="shot__input" type="file" id="' + id + '" name="shot_' + no +
+                '" accept="image/*">' +
+              '<label class="shot__btn" for="' + id + '">Attach a photo</label>' +
+              '<span class="shot__name" id="' + id + '-name">nothing yet</span>' +
+            "</div>") +
+          "</li>";
+      }).join("");
+    }
+
+    if (!useGoogle) {
+      var tally = qs("#shot-count");
+      function count() {
+        if (!tally) return;
+        var n = qsa(".shot__input").filter(function (i) { return i.files.length; }).length;
+        tally.textContent = n === prompts.length && prompts.length
+          ? "All " + prompts.length + " attached. Go and lie down."
+          : n + " of " + prompts.length + " attached";
+      }
+      qsa(".shot__input").forEach(function (inp) {
+        inp.addEventListener("change", function () {
+          var f = inp.files[0];
+          var name = qs("#" + inp.id + "-name");
+          if (name) name.textContent = f ? f.name : "nothing yet";
+          inp.closest(".shot").classList.toggle("shot--done", !!f);
+          count();
+        });
+      });
+      count();
+    }
+
+    /* The optional shared album for everything that isn't one of the ten. */
+    var albumUrl = cfgLink("games.photos.albumUrl");
+    var haveAlbum = !!albumUrl;
+    var note = qs("#photos-album-note");
+    if (note) {
+      note.hidden = !(haveAlbum && P.albumNote);
+      setText("#photos-album-text", P.albumNote);
+      var al = qs("#photos-album-link");
+      if (al) { al.hidden = !haveAlbum; if (haveAlbum) al.href = albumUrl; }
+    }
+  }
+
+  /* --- mission two: the quiz, marked here and sent to you --- */
+  function missionQuiz() {
+    var list = qs("#q-list");
+    if (!list) return;
+    var Q = (C.games || {}).quiz || {};
+    var all = Q.questions || [];
+
+    setText("#quiz-eyebrow", Q.eyebrow);
+    setText("#quiz-heading", Q.heading);
+    setText("#quiz-intro", Q.intro);
+
+    /* A question still carrying «guillemets» is one you haven't written yet.
+       Guests get the finished ones only — a live page asking "«Option one»"
+       is worse than a shorter quiz. ?preview shows them all, gold marks and
+       all, so you can see what is still outstanding. Each keeps its original
+       position in its field name, so filling one in later doesn't shuffle
+       the answers you have already collected. */
+    function unfinished(q) {
+      var bits = [q.q].concat(q.options || []);
+      return bits.some(function (t) { return /[\u00ab\u00bb]/.test(String(t || "")); });
+    }
+    var questions = all.map(function (q, i) { return { q: q, i: i }; })
+      .filter(function (x) { return previewing() || !unfinished(x.q); })
+      .map(function (x) { var c = x.q; c.__i = x.i; return c; });
+
+    list.innerHTML = questions.map(function (q) {
+      var i = q.__i;
+      var name = "q" + i;
+      return '<li class="q" id="' + name + '">' +
+        '<p class="q__text">' + todo(q.q) + "</p>" +
+        '<div class="choices">' +
+          (q.options || []).map(function (o, j) {
+            return '<label class="choice"><input type="radio" name="' + name +
+              '" value="' + j + '" required><span>' + todo(o) + "</span></label>";
+          }).join("") +
+        "</div>" +
+        /* "«»" is a blank you haven't filled in yet — no empty line for it. */
+        (String(q.because || "").replace(/[«»]/g, "").trim()
+          ? '<p class="q__why" hidden>' + todo(q.because) + "</p>" : "") +
+        "</li>";
+    }).join("");
+
+    var form = qs("#quiz-form");
+    var out = qs("#quiz-result");
+    if (!form || !out) return;
+
+    form.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var hp = qs('[name="bot-field"]', form);
+      if (hp && hp.value) return;                     // a bot filled the honeypot
+      if (!form.reportValidity()) return;
+
+      /* Mark it first, so the score is instant even if the network isn't. */
+      var score = 0;
+      questions.forEach(function (q) {
+        var i = q.__i;
+        var picked = qs('input[name="q' + i + '"]:checked', form);
+        var right = picked && Number(picked.value) === Number(q.answer);
+        if (right) score++;
+        var li = qs("#q" + i, form);
+        if (!li) return;
+        li.setAttribute("data-mark", right ? "right" : "wrong");
+        var why = qs(".q__why", li);
+        if (why) why.hidden = false;
+        qsa('input[name="q' + i + '"]', li).forEach(function (inp) {
+          if (Number(inp.value) === Number(q.answer)) {
+            inp.parentNode.classList.add("choice--answer");
+          }
+          inp.disabled = true;
+        });
+      });
+
+      /* Spread the verdicts over the range, keeping the last for full marks —
+         9 out of 10 shouldn't read as flawless. */
+      var verdicts = Q.verdicts || [];
+      var band = "";
+      if (verdicts.length === 1) band = verdicts[0];
+      else if (verdicts.length && questions.length) {
+        band = score === questions.length
+          ? verdicts[verdicts.length - 1]
+          : verdicts[Math.min(verdicts.length - 2,
+              Math.floor(score / questions.length * (verdicts.length - 1)))];
+      }
+
+      /* The marking needs no server, so it happens here and it happens
+         instantly. Recording the score is the only part that leaves the
+         page, and that goes to a Google Form. */
+      var logUrl = cfgLink("collect.quiz");
+      out.innerHTML = '<p class="quiz-score"><b>' + score + "</b> out of " +
+        questions.length + "</p>" + (band ? "<p>" + todo(band) + "</p>" : "") +
+        (logUrl
+          ? '<p class="btn-row" style="justify-content:flex-start;margin-top:1.2rem">' +
+              '<a class="btn btn--gold" id="quiz-log" href="' + esc(logUrl) +
+              '" rel="noopener">Put your score on the board</a></p>' +
+            '<p class="quiz-sent">Two boxes … your name, and the number above.</p>'
+          : '<p class="quiz-sent" id="quiz-sent">Sending your answers to us…</p>');
+      out.hidden = false;
+      out.setAttribute("role", "status");
+      out.scrollIntoView({ block: "center", behavior: "smooth" });
+
+      var btn = qs('[type="submit"]', form);
+      if (btn) btn.hidden = true;
+
+      /* Disabled inputs are left out of FormData, so read the answers back
+         off the config-shaped names we already have rather than the form. */
+      var data = { "form-name": "quiz", score: score + "/" + questions.length };
+      var nameField = qs('[name="guest_name"]', form);
+      var mailField = qs('[name="email"]', form);
+      if (nameField) data.guest_name = nameField.value;
+      if (mailField) data.email = mailField.value;
+      questions.forEach(function (q) {
+        var picked = qs('input[name="q' + q.__i + '"]:checked', form);
+        var j = picked ? Number(picked.value) : -1;
+        data["q" + q.__i] = j < 0 ? "" : String((q.options || [])[j] || j);
+      });
+
+      if (logUrl) return;            // Google has it; nothing to post
+
+      var sent = qs("#quiz-sent");
+      sendTo(form, data).then(function (r) {
+        if (!sent) return;
+        sent.textContent = r.demo
+          ? "Saved in this browser only — there's no form backend running."
+          : r.ok
+            ? "Sent. We can see how you did."
+            : "Your score is yours, but the answers didn't reach us: " + r.msg;
+        sent.setAttribute("data-ok", r.ok ? "1" : "0");
+      });
+    });
+  }
+
+  /* ---------- 9. forms ---------- */
+  function encode(data) {
+    return Object.keys(data).map(function (k) {
+      return encodeURIComponent(k) + "=" + encodeURIComponent(data[k]);
+    }).join("&");
+  }
+
+  /* A form with files has to go as multipart, and empty file inputs are
+     dropped so a half-finished mission isn't padded with blank parts. */
+  function collectFiles(form) {
+    var fd = new FormData();
+    qsa("input,select,textarea", form).forEach(function (f) {
+      var n = f.name;
+      if (!n || n === "bot-field") return;
+      if (f.type === "file") {
+        if (f.files && f.files[0]) fd.append(n, f.files[0], f.files[0].name);
+        return;
+      }
+      if ((f.type === "radio" || f.type === "checkbox") && !f.checked) return;
+      fd.append(n, f.value);
+    });
+    return fd;
+  }
+
+  function fdSummary(fd) {
+    var out = {};
+    fd.forEach(function (v, k) {
+      out[k] = (v && v.name) ? "[file] " + v.name : v;
+    });
+    return out;
+  }
+
+  /* Post a form's data wherever config says. Resolves to
+     { ok: true } | { ok: true, demo: true } | { ok: false, msg: "…" }. */
+  function sendTo(form, data) {
+    var backend = C.formBackend || "netlify";
+    var name = form.getAttribute("name");
+    var isFD = typeof FormData !== "undefined" && data instanceof FormData;
+
+    if (backend === "demo" || location.protocol === "file:") {
+      try {
+        var key = "bb-" + name;
+        var all = JSON.parse(localStorage.getItem(key) || "[]");
+        all.push({ at: new Date().toISOString(), data: isFD ? fdSummary(data) : data });
+        localStorage.setItem(key, JSON.stringify(all));
+      } catch (e) { /* private browsing — nothing to do */ }
+      return Promise.resolve({ ok: true, demo: true });
+    }
+
+    if (isFD) data.set("form-name", name); else data["form-name"] = name;
+
+    if (backend === "formspree") {
+      return fetch("https://formspree.io/f/" + C.formspreeId, {
+        method: "POST",
+        headers: isFD ? { Accept: "application/json" }
+                      : { "Content-Type": "application/json", Accept: "application/json" },
+        body: isFD ? data : JSON.stringify(data),
+      }).then(function (r) {
+        return r.ok ? { ok: true } : { ok: false, msg: "Formspree said no (" + r.status + ")." };
+      }).catch(function () { return { ok: false, msg: "We couldn't reach the server." }; });
+    }
+
+    /* Netlify Forms: post back to the page itself. With files, hand fetch the
+       FormData untouched so the browser writes the multipart boundary. */
+    return fetch(form.getAttribute("action") || location.pathname, isFD
+      ? { method: "POST", body: data }
+      : { method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: encode(data) }
+    ).then(function (r) {
+      return r.ok ? { ok: true } : { ok: false, msg: "The server returned " + r.status + "." };
+    }).catch(function () { return { ok: false, msg: "We couldn't reach the server." }; });
+  }
+
+  /* Turn a form into a flat object; checkbox groups become "a, b, c". */
+  function collect(form) {
+    var out = {};
+    new FormData(form).forEach(function (v, k) {
+      if (k === "bot-field") return;
+      out[k] = out[k] ? out[k] + ", " + v : v;
+    });
+    return out;
+  }
+
+  function status(form, tone, html) {
+    var box = qs(".form-status", form.parentNode) || (function () {
+      var b = el("div", "form-status");
+      form.parentNode.insertBefore(b, form);
+      return b;
+    })();
+    box.setAttribute("data-tone", tone);
+    box.innerHTML = html;
+    box.hidden = false;
+    box.setAttribute("role", "status");
+    box.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+
+  function wireForms() {
+    qsa("form[data-ajax]").forEach(function (form) {
+      form.addEventListener("submit", function (ev) {
+        if (qs('[name="bot-field"]', form) && qs('[name="bot-field"]', form).value) {
+          ev.preventDefault(); return;                       // a bot filled the honeypot
+        }
+        if (!form.reportValidity()) return;
+        ev.preventDefault();
+
+        var files = form.hasAttribute("data-files");
+        var btn = qs('[type="submit"]', form);
+        var label = btn ? btn.textContent : "";
+
+        var done = function () {
+          if (btn) { btn.disabled = false; btn.textContent = label; }
+        };
+        var bad = function (msg) {
+          done();
+          status(form, "bad",
+            "<p><strong>That didn't send.</strong> " + esc(msg) + "</p>" +
+            "<p>Please email us instead: <a href='mailto:" +
+            esc(String((C.contact || {}).email || "").replace(/[«»]/g, "")) + "'>" +
+            todo((C.contact || {}).email || "") + "</a></p>");
+        };
+
+        if (files) {
+          var picked = qsa('input[type="file"]', form)
+            .filter(function (i) { return i.files.length; });
+
+          /* An upload form with nothing attached is an empty submission. */
+          if (!picked.length) {
+            status(form, "bad", "<p><strong>Nothing attached yet.</strong> " +
+              "Add at least one photograph before you send it.</p>");
+            return;
+          }
+
+          /* Netlify refuses a form request over 8 MB outright. Three photos off
+             a modern phone can pass that, so say so here rather than letting
+             them watch a progress bar end in a server error. Sending in
+             batches works: every submission is kept. */
+          var LIMIT = 7.5 * 1024 * 1024;
+          var total = picked.reduce(function (n, i) { return n + i.files[0].size; }, 0);
+          if (total > LIMIT) {
+            var mb = function (b) { return (b / 1048576).toFixed(1) + " MB"; };
+            status(form, "bad",
+              "<p><strong>That's " + mb(total) + " \u2014 too much to send in one go.</strong> " +
+              "The limit is 8 MB a time.</p>" +
+              "<p>Take a few off and send them, then attach the rest and send again. " +
+              "Nothing is lost \u2014 we get every batch, and we'll put them back together.</p>");
+            return;
+          }
+        }
+
+        if (btn) { btn.disabled = true; btn.textContent = files ? "Uploading…" : "Sending…"; }
+
+        sendTo(form, files ? collectFiles(form) : collect(form)).then(function (r) {
+          if (!r.ok) { bad(r.msg); return; }
+          done();
+          form.hidden = true;
+          if (r.demo) {
+            status(form, "info",
+              "<p><strong>Saved locally — nothing was actually sent.</strong></p>" +
+              "<p>The site is running without a form backend (either <code>formBackend: \"demo\"</code> " +
+              "in <code>data/config.js</code>, or you opened the file directly instead of over http). " +
+              "Deploy it and this becomes a real submission.</p>");
+            return;
+          }
+          status(form, "ok", qs("[data-thanks]", form.parentNode)
+            ? qs("[data-thanks]", form.parentNode).innerHTML
+            : "<p><strong>Got it — thank you.</strong> We'll be in touch.</p>");
+        });
+      });
+    });
+
+    /* "Coming to this one?" toggles reveal the per-event extras. */
+    qsa("[data-reveal]").forEach(function (input) {
+      var target = qs(input.getAttribute("data-reveal"));
+      if (!target) return;
+      var sync = function () {
+        var on = qsa('input[name="' + input.name + '"]')
+          .filter(function (i) { return i.checked; })
+          .some(function (i) { return i.hasAttribute("data-reveal"); });
+        target.hidden = !on;
+      };
+      qsa('input[name="' + input.name + '"]').forEach(function (i) {
+        i.addEventListener("change", sync);
+      });
+      sync();
+    });
+  }
+
+  /* ---------- 10. go ---------- */
+  function init() {
+    document.title = (document.title ? document.title + " · " : "") +
+      String((C.couple || {}).siteTitle || "").replace(/[«»]/g, "");
+    bindConfig(document);
+    gamesNav();
+    markNav();
+    countdown();
+    eventPanels();
+    dayList();
+    gifts();
+    travel();
+    sustain();
+    story();
+    media();
+    if (gameGate()) missions();
+    wireForms();
+    paintAll(document);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else { init(); }
+})();

@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Travel &amp; Stay</title>
+<meta name="description" content="How to get to Puri, where to stay, and how to tell Akanksha and Prateek your travel plans.">
+<meta name="theme-color" content="#07173a">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="assets/img/eyes.png">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-head">
+  <div class="site-head__in">
+    <a class="brand" href="index.html">
+      <img class="brand__logo" src="assets/img/logo.png" alt="" width="720" height="676">
+      Balle Balle <em class="gurmukhi" data-cfg="couple.gurmukhi"></em>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="index.html">Home</a>
+      <a href="events.html">Events</a>
+      <a href="gifts.html">Gift Registry</a>
+      <a href="travel.html">Travel &amp; Stay</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section class="sky sky--band sky--scrim" data-sky="tints-of-sunflower" data-art="assets/art/haldi.jpg">
+    <div class="sky__in">
+      <p class="eyebrow">Getting there</p>
+      <h1>Travel &amp; Stay</h1>
+      <p class="lede" data-cfg="travel.intro"></p>
+    </div>
+  </section>
+
+  <!-- ---------- 1. getting to Puri ---------- -->
+  <section class="section shell">
+    <div class="section__head">
+      <p class="eyebrow">Step one</p>
+      <h2>Getting to Puri</h2>
+      <p class="lede">Puri sits at the end of the line in every sense — it is the last stop
+      on the railway and the last town before the Bay of Bengal. There are two sensible ways in.</p>
+    </div>
+    <div class="grid grid--2">
+      <div class="card">
+        <p class="card__meta">By air</p>
+        <h3 data-cfg="travel.air.name"></h3>
+        <p data-cfg="travel.air.note"></p>
+      </div>
+      <div class="card">
+        <p class="card__meta">By rail</p>
+        <h3 data-cfg="travel.rail.name"></h3>
+        <p data-cfg="travel.rail.note"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------- 2. where to stay ---------- -->
+  <section class="section section--rule shell">
+    <div class="section__head">
+      <p class="eyebrow">Step two</p>
+      <h2>Where to stay</h2>
+      <p class="lede">The two venues are also the two hotels, so staying at either one puts
+      you inside half the wedding and a short hop from the other half.</p>
+    </div>
+    <div class="grid grid--2" id="hotel-grid"></div>
+    <div class="callout" data-cfg-box>
+      <p data-cfg-row><strong>Getting between them.</strong> <span data-cfg="travel.shuttle"></span></p>
+      <p data-cfg-row><strong>Visas.</strong> <span data-cfg="travel.visaNote"></span></p>
+    </div>
+  </section>
+
+  <!-- ---------- 3. while you're here ---------- -->
+  <section class="section section--rule shell">
+    <div class="section__head">
+      <p class="eyebrow">Step three</p>
+      <h2>While you're here</h2>
+      <p class="lede">Both afternoons are free between roughly two and five. Puri rewards
+      an idle afternoon more than most places.</p>
+    </div>
+    <ul class="ticks grid grid--2">
+      <li><h3>The beach is right there</h3>
+        <p>Swimming is best early, before the sun turns unreasonable. The sunrise over the
+        water is the thing people come for, and it is genuinely worth setting an alarm.</p></li>
+      <li><h3>The Jagannath temple</h3>
+        <p>Ten minutes from either hotel and the reason Puri exists. Non-Hindu visitors
+        can't go inside, but the roof of the library across the road is the view everyone
+        photographs anyway.</p></li>
+      <li><h3>Raghurajpur</h3>
+        <p>A village of pattachitra painters about half an hour out, where nearly every
+        house is a studio. If you liked the paintings on your invitation, go here.</p></li>
+      <li><h3>Eat the obvious things</h3>
+        <p>Fish, prawns, and whatever the hotel is calling the local thali. Ask anyone
+        about the sweets — you'll get a forty-minute answer and a strong recommendation.</p></li>
+    </ul>
+  </section>
+
+  <!-- ---------- 4. your itinerary — the one form on the site ---------- -->
+  <section class="section section--rule shell" id="plans">
+    <div class="form-wrap">
+      <div class="section__head">
+        <p class="eyebrow">Step four</p>
+        <h2>Tell us your plans</h2>
+        <p class="lede">Mostly so we can put four of you in one car from Bhubaneswar instead
+        of four cars. Partly so somebody is at the gate holding a sign with your name
+        misspelled on it.</p>
+      </div>
+
+      <!-- Shown only until `collect.itinerary` in config.js is a real link. -->
+      <div id="plans-elsewhere" hidden>
+        <p class="btn-row" style="justify-content:flex-start;margin-top:0">
+          <a class="btn btn--gold" id="plans-link" href="#" rel="noopener">Send us your plans</a>
+        </p>
+        <p class="form-note">Opens a short Google Form. Flight or train, when you
+        land, where you're staying, and whether you'll share a car.</p>
+      </div>
+
+      <div id="plans-form">
+      <form id="travel-form" class="form" name="travel" method="POST" action="/"
+            data-netlify="true" netlify-honeypot="bot-field" data-ajax>
+        <input type="hidden" name="form-name" value="travel">
+        <p class="hp"><label>Leave this empty <input name="bot-field"></label></p>
+
+        <div class="field">
+          <label for="t-name">Your name</label>
+          <input id="t-name" name="guest_name" type="text" autocomplete="name" required>
+        </div>
+
+        <div class="field">
+          <label for="t-email">Email</label>
+          <input id="t-email" name="email" type="email" autocomplete="email" required>
+        </div>
+
+        <fieldset class="fieldset">
+          <legend>How are you getting here?</legend>
+          <div class="choices">
+            <label class="choice"><input type="radio" name="arriving_by" value="Flight to Bhubaneswar" required data-reveal="#arrival-detail"><span>Flying</span></label>
+            <label class="choice"><input type="radio" name="arriving_by" value="Train to Puri" data-reveal="#arrival-detail"><span>Train</span></label>
+            <label class="choice"><input type="radio" name="arriving_by" value="Driving"><span>Driving</span></label>
+            <label class="choice"><input type="radio" name="arriving_by" value="Already in Odisha"><span>Already nearby</span></label>
+          </div>
+        </fieldset>
+
+        <div id="arrival-detail" hidden>
+          <div class="field">
+            <label for="t-num">Flight or train number</label>
+            <input id="t-num" name="arrival_number" type="text" placeholder="e.g. 6E 6383, or 12801 Purushottam Express">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="t-in">Arriving</label>
+          <input id="t-in" name="arrival_at" type="datetime-local">
+          <p class="hint">Date and time you land or pull in. This is the field that does all the work.</p>
+        </div>
+
+        <div class="field">
+          <label for="t-out">Leaving</label>
+          <input id="t-out" name="departure_at" type="datetime-local">
+        </div>
+
+        <div class="field">
+          <label for="t-stay">Where are you staying?</label>
+          <select id="t-stay" name="staying_at">
+            <option value="">Not booked yet</option>
+            <option>Fortune Beachfront, Puri</option>
+            <option>The Chanakya BNR, Puri</option>
+            <option>Somewhere else in Puri</option>
+            <option>With family</option>
+          </select>
+        </div>
+
+        <fieldset class="fieldset">
+          <legend>Sharing a car from the airport</legend>
+          <p class="ev-when">The single biggest thing that cuts the footprint of a wedding
+          people fly to. We'll match you with someone landing within the hour.</p>
+          <div class="choices">
+            <label class="choice"><input type="radio" name="carpool" value="Happy to share" checked><span>Happy to share</span></label>
+            <label class="choice"><input type="radio" name="carpool" value="Rather not"><span>Rather not</span></label>
+            <label class="choice"><input type="radio" name="carpool" value="Own transport"><span>I have my own</span></label>
+          </div>
+        </fieldset>
+
+        <div class="field">
+          <label class="check">
+            <input type="checkbox" name="visa_letter" value="Yes">
+            <span>I need a signed invitation letter for a visa application.</span>
+          </label>
+        </div>
+
+        <div class="field">
+          <label for="t-msg">Anything else</label>
+          <textarea id="t-msg" name="message" rows="3"
+                    placeholder="Mobility needs, a toddler, an 04:40 landing you'd like to complain about…"></textarea>
+        </div>
+
+        <button class="btn btn--gold btn--block" type="submit">Send our plans</button>
+        <p class="form-note">You can send this more than once — the latest one wins.</p>
+      </form>
+
+      </div>
+
+      <div data-thanks hidden>
+        <p><strong>Thank you — that's genuinely useful.</strong></p>
+        <p>We'll come back to you with a car share if we find a match, and the shuttle
+        times land in your inbox nearer the date.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-foot">
+  <div class="shell site-foot__in">
+    <p>Akanksha &amp; Prateek &middot; <span data-cfg="mainDateLabel"></span> &middot; <span data-cfg="mainCityLabel"></span></p>
+    <p><a data-cfg="contact.email" data-cfg-mailto>email</a></p>
+    <p class="tag gurmukhi" data-cfg="couple.gurmukhi"></p>
+  </div>
+</footer>
+
+<script src="data/config.js"></script>
+<script src="assets/js/site.js"></script>
+</body>
+</html>

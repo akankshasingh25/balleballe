@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gift Registry</title>
+<meta name="description" content="The gift registry for Akanksha and Prateek — gift an item, chip in towards one, or buy a gift card.">
+<meta name="theme-color" content="#07173a">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="assets/img/eyes.png">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-head">
+  <div class="site-head__in">
+    <a class="brand" href="index.html">
+      <img class="brand__logo" src="assets/img/logo.png" alt="" width="720" height="676">
+      Balle Balle <em class="gurmukhi" data-cfg="couple.gurmukhi"></em>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="index.html">Home</a>
+      <a href="events.html">Events</a>
+      <a href="gifts.html">Gift Registry</a>
+      <a href="travel.html">Travel &amp; Stay</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section class="sky sky--band sky--scrim" data-sky="shades-of-sunset" data-art="assets/art/sangeet.jpg">
+    <div class="sky__in">
+      <p class="eyebrow">If you insist</p>
+      <h1>Gift Registry</h1>
+      <p class="lede" data-cfg="gifts.intro"></p>
+    </div>
+  </section>
+
+  <!-- ---------- three ways ---------- -->
+  <section class="section shell">
+    <div class="section__head">
+      <p class="eyebrow">However suits you</p>
+      <h2>Three ways to do it</h2>
+    </div>
+    <ul class="ticks grid grid--3" id="gift-ways"></ul>
+  </section>
+
+  <!-- ---------- the list ---------- -->
+  <section class="section section--rule shell">
+    <div class="section__head">
+      <p class="eyebrow">The list</p>
+      <h2>Things we'd actually use</h2>
+      <p class="lede" id="gift-list-blurb" hidden>Chip in towards any of them instead, if you'd rather.</p>
+      <p class="lede" id="gift-pending" hidden>We are still writing it down. It will be
+      here well before December — or just ask us and we will tell you.</p>
+    </div>
+    <ul class="gift-list" id="gift-list"></ul>
+    <p class="btn-row" style="justify-content:flex-start">
+      <a class="btn btn--ghost" id="gift-sheet" href="#" rel="noopener" hidden>Open the full sheet</a>
+    </p>
+  </section>
+
+  <!-- ---------- gift cards ---------- -->
+  <section class="section section--rule shell" data-cfg-row>
+    <div class="section__head">
+      <p class="eyebrow">Or skip the choosing</p>
+      <h2>Gift cards</h2>
+      <p class="lede">Any of these go into the same pot and let us finish the list ourselves.</p>
+    </div>
+    <ul class="brand-list" id="gift-brands"></ul>
+  </section>
+
+  <!-- ---------- tell us ---------- -->
+  <section class="section section--rule shell">
+    <div class="callout">
+      <p data-cfg="gifts.closing"></p>
+    </div>
+  </section>
+</main>
+
+<footer class="site-foot">
+  <div class="shell site-foot__in">
+    <p>Akanksha &amp; Prateek &middot; <span data-cfg="mainDateLabel"></span> &middot; <span data-cfg="mainCityLabel"></span></p>
+    <p><a data-cfg="contact.email" data-cfg-mailto>email</a></p>
+    <p class="tag gurmukhi" data-cfg="couple.gurmukhi"></p>
+  </div>
+</footer>
+
+<script src="data/config.js"></script>
+<script src="assets/js/site.js"></script>
+</body>
+</html>
