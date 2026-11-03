@@ -156,8 +156,11 @@
        trailing slash. Compare both sides stripped down to a bare name, or
        the "you are here" marker never fires once it's deployed. */
     function bare(u) {
-      return String(u || "").split(/[?#]/)[0].replace(/\/$/, "")
-        .split("/").pop().replace(/\.html$/, "") || "index";
+      var v = String(u || "").split(/[?#]/)[0];
+      /* A path ending in "/" is a directory index — "/balleballe/" on a
+         project Pages site, or "/" at a domain root. Both mean home. */
+      if (v === "" || /\/$/.test(v)) return "index";
+      return v.split("/").pop().replace(/\.html$/, "") || "index";
     }
     var here = bare(location.pathname);
     qsa(".nav a").forEach(function (a) {
